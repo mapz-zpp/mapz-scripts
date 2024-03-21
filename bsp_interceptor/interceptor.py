@@ -209,9 +209,9 @@ def sender_task(storage: InterceptorStorage, send_event: Event):
             send_event.set()
 
 
-
-def mimic():
-    server_argv = ["/opt/homebrew/opt/sdkman-cli/libexec/candidates/java/17.0.9-tem/bin/java","-Xms100m","-Xmx100m","-classpath","/opt/homebrew/Cellar/sbt/1.9.9/libexec/bin/sbt-launch.jar","-Dsbt.script=/opt/homebrew/Cellar/sbt/1.9.9/libexec/bin/sbt","xsbt.boot.Boot","-bsp"]
+def mimic(connection_file_path: Path):
+    connection_file = BSPConnectionDetails.parse_connection_file(connection_file_path)
+    server_argv = connection_file.argv
     process = Popen(server_argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr, text=True)
 
     storage = InterceptorStorage()
@@ -239,14 +239,6 @@ def mimic():
     sys.exit(0)
 
 # ===== REPLACER ======
-
-
-    {"name": "sbt",
-     "version": "1.9.8",
-     "languages": ["scala"],
-     "argv": ["python", "-u", "/Users/pfuchs/Bachelor/ZPP/bsphelloworld/../bsp_inceptor/inceptor.py", "mimic", "/Users/pfuchs/Bachelor/ZPP/bsphelloworld/../bsp_inceptor/inceptor.py"],
-     "bspVersion": "2.1.0-M1"}
-
 
 POSSIBLE_BSP_FILE_NAMES = ["sbt.json"]
 
@@ -277,15 +269,14 @@ class BSPConnectionDetails:
 
         return BSPConnectionDetails(**file_json)
 
-    def to_script_connection_details(self, script_path: Path) -> "BSPConnectionDetails":
+    def to_script_connection_details(self, script_path: Path, connection_file_path: Path) -> "BSPConnectionDetails":
         return BSPConnectionDetails(
             name=self.name,
             version=self.version,
             languages=self.languages.copy(),
-            argv=["python", "-u", str(script_path), "mimic"],
+            argv=["python", "-u", str(script_path), "mimic", str(connection_file_path)],
             bsp_version=self.bsp_version
         )
-
 
 
 def replace(path: Path):
@@ -304,9 +295,11 @@ def replace(path: Path):
     interceptor_path.mkdir(parents=True, exist_ok=True)
 
     copied_script_path = interceptor_path / "interceptor_clone.py"
+    copied_connection_file_path = interceptor_path / "copied_connection_file.json"
+    shutil.copy(possible_path, copied_connection_file_path)
     shutil.copy(__file__, copied_script_path)
 
-    script_connection_details = connection_details.to_script_connection_details(copied_script_path.absolute())
+    script_connection_details = connection_details.to_script_connection_details(copied_script_path.absolute(), copied_connection_file_path)
     script_connection_details.dump_to_connection_file(possible_path)
 
 
@@ -319,7 +312,7 @@ if __name__ == "__main__":
 
         aggr.run_receiver()
     elif sys.argv[1] == "mimic":
-        mimic()
+        mimic(Path(sys.argv[2]))
     else:
         path = Path(sys.argv[2])
         replace(path)
